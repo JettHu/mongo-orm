@@ -1,2 +1,7 @@
 # mongo-orm
-a mongo orm project
+An ORM for MongoDB.
+
+## Code standard
+
+- flake8
+- pylint
