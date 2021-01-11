@@ -5,8 +5,10 @@
 # @author: jetthu
 # @email: jett.hux@gmail.com
 '''
-import logging
-import bson
+
+DEBUG = True
+if DEBUG:
+    logging.basicConfig(level=logging.DEBUG)
 
 
 class MongoField:
@@ -35,7 +37,7 @@ class MongoField:
         self.validation = validation
 
     def __str__(self):
-        return f'<{self.__class__.__name__}, {self.column_type}: {self.name}>'
+        return f'<{self.__class__.__name__}, {self.field_type}: {self.field_name}>'
 
     def validate(self, value, **kwargs):
         if self.type_check:
@@ -44,6 +46,22 @@ class MongoField:
 
         if self.validation:
             self.validation(value, **kwargs)
+
+
+class CommonField(MongoField):
+    def __init__(self, field_name, default=None,
+                 required=False, unique=False, validation=None, **kw):
+        super().__init__(
+            field_name=field_name,
+            default=default,
+            required=required,
+            unique=unique,
+            validation=validation,
+            field_type=type,
+            type_check=False,
+            pk=False,
+            **kw,
+        )
 
 
 class StringField(MongoField):
@@ -108,6 +126,7 @@ class ModelMetaclass(type):
         attrs['__table__'] = table_name
         attrs['__pk__'] = pk
         attrs['__fields__'] = fields
+        attrs['__modified__'] = []
         return type.__new__(cls, name, base, attrs)
 
 
@@ -115,10 +134,11 @@ class Model(metaclass=ModelMetaclass):
     def __setattr__(self, key, value):
         if key in self.__mappings__:
             self.__mappings__[key].validate(value)
+            self.__modified__.append(key)
         self.__dict__[key] = value
 
-    def get_value(self, key):
-        return getattr(self, key, None)
+    # def get_value(self, key):
+    #     return getattr(self, key, None)
 
     def get_value_or_default(self, key):
         value = getattr(self, key, None)
@@ -133,6 +153,25 @@ class Model(metaclass=ModelMetaclass):
     def validate_fields(self):
         for name, field in self.__mappings__.items():
             field.validate(getattr(self, name, None))
+        logging.debug('validate_fields passed')
 
     def save(self):
-        pass
+        self.validate_fields()
+        if getattr(self, '_id', None):
+            query = {'$set': {k: getattr(self, k) for k in self.__modified__}}
+            logging.debug(f'update record _id={self._id}, {query}')
+            self.__modified__.clear()
+            return
+        logging.debug(f'insert new record to collection {self.__table__}, {self}')
+        self.__modified__.clear()
+
+    def __str__(self):
+        diction = {k: getattr(self, k, None) for k in self.__mappings__}
+        if not diction['_id']:
+            diction.pop('_id', None)
+        return str(diction)
+
+
+class User(Model):
+    name = StringField('user_name', type_check=True)
+    test_field = CommonField('test', default=-9999)
