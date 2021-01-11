@@ -5,6 +5,8 @@
 # @author: jetthu
 # @email: jett.hux@gmail.com
 '''
+import logging
+import bson
 
 DEBUG = True
 if DEBUG:
@@ -170,8 +172,3 @@ class Model(metaclass=ModelMetaclass):
         if not diction['_id']:
             diction.pop('_id', None)
         return str(diction)
-
-
-class User(Model):
-    name = StringField('user_name', type_check=True)
-    test_field = CommonField('test', default=-9999)
